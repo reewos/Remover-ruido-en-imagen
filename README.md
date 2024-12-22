@@ -1,0 +1,2 @@
+# Remover ruido en imagen
+ 
