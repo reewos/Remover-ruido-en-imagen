@@ -51,6 +51,8 @@ streamlit run app.py
 
 Esto abrirá automáticamente la interfaz en tu navegador con la URL http://localhost:8501
 
+De igual modo, se ha deployado en Streamlit Cloud en la siguiente URL: https://remover-ruido-en-imagen.streamlit.app/
+
 ## Uso en la aplicación
 
 Dentro de la app se puede hacer lo siguiente:
