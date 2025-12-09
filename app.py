@@ -1,9 +1,11 @@
+import os
 import streamlit as st
 import cv2
 import numpy as np
 from PIL import Image
 import io
-import matplotlib.pyplot as plt
+
+import utils
 
 def load_image():
     uploaded_file = st.file_uploader("Cargar imagen", type=['png', 'jpg', 'jpeg'])
@@ -12,52 +14,39 @@ def load_image():
         return np.array(image)
     return None
 
-def calculate_histogram(image):
-    if len(image.shape) == 3:
-        image = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
-    hist = cv2.calcHist([image], [0], None, [256], [0, 256])
-    fig, ax = plt.subplots(figsize=(4, 3))
-    ax.plot(hist)
-    ax.set_title('Histograma')
-    ax.set_xlabel('Intensidad')
-    ax.set_ylabel('Frecuencia')
-    fig.tight_layout()
-    return fig
+def load_sample_images(folder="images"):
+    """Carga rutas de imágenes de ejemplo desde la carpeta especificada."""
+    allowed = (".png", ".jpg", ".jpeg")
+    if not os.path.exists(folder):
+        return []
 
-def apply_threshold(image, threshold_value):
-    if len(image.shape) == 3:
-        image = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
-    _, binary = cv2.threshold(image, threshold_value, 255, cv2.THRESH_BINARY)
-    return binary
-
-def apply_median_filter(image, kernel_size):
-    return cv2.medianBlur(image, kernel_size)
-
-def apply_gaussian_filter(image, kernel_size, sigma):
-    return cv2.GaussianBlur(image, (kernel_size, kernel_size), sigma)
-
-def apply_morphological_operations(image, operation, kernel_size):
-    kernel = np.ones((kernel_size, kernel_size), np.uint8)
-    if operation == 'Erosión':
-        return cv2.erode(image, kernel, iterations=1)
-    elif operation == 'Dilatación':
-        return cv2.dilate(image, kernel, iterations=1)
-    elif operation == 'Apertura':
-        return cv2.morphologyEx(image, cv2.MORPH_OPEN, kernel)
-    elif operation == 'Cierre':
-        return cv2.morphologyEx(image, cv2.MORPH_CLOSE, kernel)
-    return image
+    return [os.path.join(folder, f) 
+            for f in os.listdir(folder) 
+            if f.lower().endswith(allowed)]
 
 def main():
     st.set_page_config(layout="wide")
-    st.title("Procesamiento de Imágenes NPT")
+    st.title("Aplicación Interactiva para Remoción de Ruido en Imágenes")
     
     # Configuración de la sidebar
     st.sidebar.header("Controles")
     
+    # Precargar imágenes de ejemplo
+    sample_images = load_sample_images("images")
+    st.sidebar.subheader("Imágenes de ejemplo")
+    sample_choice = None
+    if sample_images:
+        filenames = [os.path.basename(img) for img in sample_images]
+        sample_choice = st.sidebar.selectbox("Elegir imagen de muestra", ["Ninguna"] + filenames)
+
     # Cargar imagen
     image = load_image()
-    
+
+    # Si el usuario selecciona una imagen de ejemplo, reemplaza la imagen cargada
+    if sample_choice and sample_choice != "Ninguna":
+        idx = filenames.index(sample_choice)
+        image = np.array(Image.open(sample_images[idx]).convert("RGB"))
+        
     if image is not None:
         # Contenedor para las imágenes procesadas
         processed_images = []
@@ -69,13 +58,13 @@ def main():
         
         # Histograma
         if st.sidebar.checkbox("Mostrar Histograma"):
-            hist_fig = calculate_histogram(image)
+            hist_fig = utils.calculate_histogram(image)
             st.sidebar.pyplot(hist_fig)
         
         # Umbralización
         if st.sidebar.checkbox("Aplicar Umbralización"):
             threshold_value = st.sidebar.slider("Valor de umbral", 0, 255, 127)
-            binary_image = apply_threshold(image, threshold_value)
+            binary_image = utils.apply_threshold(image, threshold_value)
             processed_images.append(binary_image)
             processed_titles.append("Umbralización")
             image = binary_image
@@ -88,7 +77,7 @@ def main():
         
         if filter_type == "Mediana":
             kernel_size = st.sidebar.slider("Tamaño de kernel (Mediana)", 3, 9, 3, 2)
-            filtered_image = apply_median_filter(image, kernel_size)
+            filtered_image = utils.apply_median_filter(image, kernel_size)
             processed_images.append(filtered_image)
             processed_titles.append("Filtro de Mediana")
             image = filtered_image
@@ -96,7 +85,7 @@ def main():
         elif filter_type == "Gaussiano":
             kernel_size = st.sidebar.slider("Tamaño de kernel (Gaussiano)", 3, 9, 3, 2)
             sigma = st.sidebar.slider("Sigma", 0.1, 5.0, 1.0, 0.1)
-            filtered_image = apply_gaussian_filter(image, kernel_size, sigma)
+            filtered_image = utils.apply_gaussian_filter(image, kernel_size, sigma)
             processed_images.append(filtered_image)
             processed_titles.append("Filtro Gaussiano")
             image = filtered_image
@@ -109,7 +98,7 @@ def main():
         
         if morph_operation != "Ninguna":
             kernel_size = st.sidebar.slider("Tamaño de kernel (Morfología)", 3, 9, 3, 2)
-            morphed_image = apply_morphological_operations(image, morph_operation, kernel_size)
+            morphed_image = utils.apply_morphological_operations(image, morph_operation, kernel_size)
             processed_images.append(morphed_image)
             processed_titles.append(f'Operación {morph_operation}')
             image = morphed_image
@@ -117,7 +106,7 @@ def main():
 
         # Mostrar imágenes en una disposición de cuadrícula
         num_images = len(processed_images)
-        images_per_row = 3
+        images_per_row = 4
         num_rows = (num_images + images_per_row - 1) // images_per_row
         
         for row in range(num_rows):
@@ -127,8 +116,7 @@ def main():
                 if idx < num_images:
                     with cols[col]:
                         st.image(processed_images[idx], 
-                                caption=processed_titles[idx],
-                                use_column_width=True)
+                                caption=processed_titles[idx])
                         
         # Botón para descargar la imagen final
         if st.sidebar.button("Descargar imagen procesada"):
